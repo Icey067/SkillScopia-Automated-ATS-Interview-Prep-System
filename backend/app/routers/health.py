@@ -1,33 +1,36 @@
+from __future__ import annotations
+
 import time
 from pathlib import Path
+from typing import Any
 
-from fastapi import APIRouter, Depends
+import httpx
+from fastapi import APIRouter, Response, status
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.database import SessionLocal, engine
+from app.database import AsyncSessionLocal
+from app.services.embeddings import embedding_service
 
 router = APIRouter(tags=["health"])
 settings = get_settings()
 
 
 @router.get("/health")
-def health():
+async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
 @router.get("/health/detailed")
-def health_detailed():
-    checks = {}
+async def health_detailed() -> dict[str, Any]:
+    checks: dict[str, Any] = {}
     overall = "ok"
 
-    # Database check
+    # 1. Async Database Check
     db_start = time.perf_counter()
     try:
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
         checks["database"] = {
             "status": "ok",
             "latency_ms": round((time.perf_counter() - db_start) * 1000, 2),
@@ -36,57 +39,54 @@ def health_detailed():
         checks["database"] = {"status": "error", "error": str(e)}
         overall = "degraded"
 
-    # Upload directory check
+    # 2. Upload Storage Check
     try:
         upload_dir = Path(settings.upload_dir)
         upload_dir.mkdir(parents=True, exist_ok=True)
         test_file = upload_dir / ".health_check"
-        test_file.write_text("ok")
-        test_file.unlink()
+        test_file.write_text("ok", encoding="utf-8")
+        test_file.unlink(missing_ok=True)
         checks["storage"] = {"status": "ok"}
     except Exception as e:
         checks["storage"] = {"status": "error", "error": str(e)}
         overall = "degraded"
 
-    # Ollama check
+    # 3. Async Ollama Health Check
     ollama_start = time.perf_counter()
     try:
-        import urllib.request
-
-        req = urllib.request.Request(f"{settings.ollama_base_url}/api/tags", method="GET")
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            if resp.status == 200:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"{settings.ollama_base_url}/api/tags")
+            if resp.status_code == 200:
                 checks["ollama"] = {
                     "status": "ok",
                     "latency_ms": round((time.perf_counter() - ollama_start) * 1000, 2),
                 }
             else:
-                checks["ollama"] = {"status": "error", "error": f"HTTP {resp.status}"}
+                checks["ollama"] = {"status": "error", "error": f"HTTP {resp.status_code}"}
                 overall = "degraded"
     except Exception as e:
         checks["ollama"] = {"status": "error", "error": str(e)}
         overall = "degraded"
 
-    # Embedding model check
-    try:
-        from app.services.embeddings import get_embedding_model
+    # 4. Embeddings Singleton Check
+    checks["embeddings"] = {
+        "status": "ok" if embedding_service.is_loaded else "unloaded",
+        "singleton_ready": embedding_service.is_loaded,
+    }
 
-        model = get_embedding_model()
-        _ = model.encode(["test"], normalize_embeddings=True)
-        checks["embeddings"] = {"status": "ok"}
-    except Exception as e:
-        checks["embeddings"] = {"status": "error", "error": str(e)}
-        overall = "degraded"
-
-    return {"status": overall, "checks": checks, "version": "1.0.0"}
+    return {
+        "status": overall,
+        "checks": checks,
+        "version": "1.0.0",
+    }
 
 
 @router.get("/health/ready")
-def readiness():
+async def readiness(response: Response) -> dict[str, bool]:
     try:
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
         return {"ready": True}
     except Exception:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"ready": False}

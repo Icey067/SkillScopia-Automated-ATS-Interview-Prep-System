@@ -10,7 +10,7 @@ export function wsUrl(path) {
 }
 
 export function wsProtocols(token) {
-  return [`access.${token}`];
+  return ["access_token", token];
 }
 
 export async function api(path, { method = "GET", token, body, isForm } = {}) {

@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
-    database_url: str = "postgresql://interview:interview@localhost:5432/interview_db"
+    database_url: str = "postgresql+asyncpg://interview:interview@localhost:5432/interview_db"
     db_pool_size: int = 10
     db_max_overflow: int = 20
     db_pool_timeout: int = 30
@@ -33,6 +33,17 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     @property
+    def async_database_url(self) -> str:
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+asyncpg://", 1)
+        if url.startswith("sqlite://") and not url.startswith("sqlite+aiosqlite://"):
+            return url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+        return url
+
+    @property
     def max_upload_size_bytes(self) -> int:
         return self.max_upload_size_mb * 1024 * 1024
 
@@ -44,3 +55,4 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
