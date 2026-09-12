@@ -118,8 +118,120 @@ async def extract_skills_from_text(resume_text: str) -> list[str]:
         return found or ["Software Engineering"]
 
 
+QUESTION_BANK: dict[str, list[tuple[str, str]]] = {
+    "python": [
+        (
+            "How does Python's Global Interpreter Lock (GIL) affect multithreaded CPU-bound vs I/O-bound applications, and what concurrency models (asyncio, multiprocessing) would you choose for each?",
+            "Candidate should discuss GIL constraints on bytecode execution, multithreading for I/O waits, multiprocessing for multi-core CPU parallelism, and asyncio event loops with non-blocking coroutines."
+        ),
+        (
+            "Can you explain how Python manages memory under the hood, specifically reference counting, cyclic garbage collection, and how to detect memory leaks in long-running services?",
+            "Candidate should mention PyObject ref counts, generational garbage collector (generations 0, 1, 2) for circular references, weakref, and tools like tracemalloc, objgraph, or memory_profiler."
+        ),
+        (
+            "How do Python generators and the iterator protocol work, and how can they be leveraged to process large datasets without excessive memory usage?",
+            "Candidate should describe __iter__ and __next__ protocols, the yield keyword, lazy evaluation, memory efficiency, and generator pipelines using itertools."
+        ),
+    ],
+    "fastapi": [
+        (
+            "In FastAPI, how does Starlette's asynchronous request lifecycle work with async def vs regular def path operations, and what happens when you block the main thread?",
+            "Candidate should distinguish async def (runs directly on the event loop) vs def (dispatched to an anyio threadpool worker), warning against calling blocking synchronous functions inside async def endpoints."
+        ),
+        (
+            "How do you design a robust dependency injection hierarchy in FastAPI for database transactions, authentication, and permission scoping?",
+            "Candidate should discuss Depends(), yield dependencies for clean session cleanup/commit/rollback, sub-dependencies, and security scopes."
+        ),
+    ],
+    "javascript": [
+        (
+            "Explain the JavaScript Event Loop, microtasks (Promise jobs) vs macrotasks (setTimeout, I/O), and how they dictate execution order in asynchronous applications.",
+            "Candidate should cover the call stack, Web APIs / libuv, microtask queue priority before rendering and next macrotask turn, and how long-running tasks cause UI jank."
+        ),
+        (
+            "What are closures in JavaScript, how does lexical scoping create them, and what are real-world use cases or potential memory leak scenarios?",
+            "Candidate should explain lexical scope chains, functions retaining outer scope references, private variables, event listener cleanup, and memory retention."
+        ),
+    ],
+    "react": [
+        (
+            "How does React 18's concurrent renderer and Fiber architecture optimize UI updates, and when would you use useTransition or useDeferredValue?",
+            "Candidate should explain Fiber reconciliation, interruptible rendering, prioritizing urgent updates (typing/clicks) over non-urgent transitions, and avoiding unnecessary re-renders."
+        ),
+        (
+            "What strategies do you employ in React to avoid redundant component re-renders while maintaining clean state management?",
+            "Candidate should discuss React.memo, useCallback, useMemo with proper dependency arrays, component decomposition, context slicing, and colocation of state."
+        ),
+    ],
+    "sql": [
+        (
+            "How do B-tree indexes improve relational database query performance, what are composite index column ordering rules, and when would an index be ignored by the query planner?",
+            "Candidate should explain B-tree search complexity, leftmost prefix rule for composite indexes, index selectivity, full table scans vs index scans, and functions applied to indexed columns preventing index usage."
+        ),
+        (
+            "Compare ACID transaction isolation levels (Read Uncommitted, Read Committed, Repeatable Read, Serializable) and the anomalies they prevent (dirty reads, non-repeatable reads, phantom reads).",
+            "Candidate should accurately match each isolation level to the specific anomaly it eliminates and mention MVCC (Multi-Version Concurrency Control) implementation in PostgreSQL."
+        ),
+    ],
+    "docker": [
+        (
+            "How do multi-stage Docker builds reduce image size and improve container security in production deployments?",
+            "Candidate should explain compiling binaries or installing build tools in early stages, copying only runtime artifacts into a minimal base (alpine/distroless), minimizing attack surface and vulnerabilities."
+        ),
+    ],
+    "system_design": [
+        (
+            "How would you design a distributed caching layer with Redis to prevent cache stampede (thundering herd), cache penetration, and cache breakdown?",
+            "Candidate should explain mutex locks/probabilistic early expiration (XFetch) for stampede, Bloom filters for non-existent keys (penetration), and stale-while-revalidate or pre-warming for popular expiring keys."
+        ),
+        (
+            "When designing a system requiring high availability and low latency across multiple regions, how do you balance CAP theorem trade-offs and handle data consistency?",
+            "Candidate should discuss CP vs AP systems, eventual consistency, quorum reads/writes, conflict resolution (CRDTs or last-write-wins), and asynchronous database replication lag."
+        ),
+        (
+            "Can you describe how you implement rate limiting in a distributed microservices environment to protect upstream services from cascading failures?",
+            "Candidate should cover token bucket or sliding window log algorithms, distributed coordination via Redis Lua scripts, circuit breakers, and 429 Retry-After semantics."
+        ),
+    ],
+}
+
+
+def _select_fallback_question(skills: list[str], asked: list[str]) -> GeneratedQuestion:
+    """Select a rich, non-repeating technical question matched to verified candidate skills."""
+    normalized_skills = [s.lower().strip() for s in skills]
+    candidate_pools: list[tuple[str, str]] = []
+
+    # Map candidate skills to question pools
+    for skill_key, questions in QUESTION_BANK.items():
+        if any(skill_key in s or s in skill_key for s in normalized_skills):
+            candidate_pools.extend(questions)
+
+    # Always include system design and general architecture questions
+    candidate_pools.extend(QUESTION_BANK["system_design"])
+    for q_list in QUESTION_BANK.values():
+        candidate_pools.extend(q_list)
+
+    # Filter out questions that have already been asked
+    asked_set = set(asked)
+    available = [q for q in candidate_pools if q[0] not in asked_set]
+
+    if not available:
+        # If all predefined questions were asked, synthesize a distinct question
+        topic = skills[len(asked) % len(skills)] if skills else "distributed systems"
+        q_text = f"In the context of {topic}, how do you evaluate architectural trade-offs between horizontal scalability, operational complexity, and fault tolerance?"
+        q_concept = "Candidate should discuss stateless services, load balancing, consensus protocols, telemetry, and automated self-healing."
+        return GeneratedQuestion(question=q_text, ideal_answer_concept=q_concept)
+
+    # Pick the next available question
+    selected_q, selected_concept = available[0]
+    return GeneratedQuestion(question=selected_q, ideal_answer_concept=selected_concept)
+
+
 async def generate_interview_question(skills: list[str], asked: list[str]) -> GeneratedQuestion:
     """Generate a single interview question forced into GeneratedQuestion schema with 1 retry."""
+    if settings.parse_mode == "dummy":
+        return _select_fallback_question(skills, asked)
+
     parser = PydanticOutputParser(pydantic_object=GeneratedQuestion)
     system = (
         "You are a Principal Software Engineer conducting a live technical interview. "
@@ -137,15 +249,52 @@ async def generate_interview_question(skills: list[str], asked: list[str]) -> Ge
 
     try:
         parsed, _ = await _ainvoke_structured(parser, system, user)
+        if parsed.question in asked:
+            return _select_fallback_question(skills, asked)
         return parsed
     except Exception as exc:
-        logger.error("Failed to generate question via LLM: %s. Using default question.", exc)
-        # Fallback question if Ollama service is unavailable
-        skill_sample = skills[0] if skills else "software architecture"
-        return GeneratedQuestion(
-            question=f"Can you explain how you design and scale systems using {skill_sample}, including common performance bottlenecks and trade-offs?",
-            ideal_answer_concept="Candidate should discuss concurrency, state management, caching, database indexing, and fault tolerance.",
+        logger.warning("LLM question generation unavailable or failed: %s. Using tailored question bank.", exc)
+        return _select_fallback_question(skills, asked)
+
+
+def _generate_fallback_feedback(
+    question: str,
+    ideal_concept: str,
+    user_answer: str,
+    skills: list[str],
+) -> str:
+    """Produce constructive, professional interviewer feedback when LLM is offline."""
+    answer_len = len(user_answer.strip())
+    words = set(re.findall(r"\b[a-zA-Z]{3,}\b", user_answer.lower()))
+    concept_words = set(re.findall(r"\b[a-zA-Z]{3,}\b", ideal_concept.lower()))
+    overlap = words.intersection(concept_words)
+
+    topic = skills[0] if skills else "system architecture"
+
+    if answer_len < 30:
+        return (
+            "Thank you for your answer. It provides a brief initial thought, but in a senior technical interview, "
+            f"you'll want to expand significantly with concrete technical details regarding {topic}. "
+            "Consider explaining the specific trade-offs, concurrency guarantees, and how you would verify this in a production environment."
         )
+
+    feedback_parts = [
+        "Good response! You touched on key concepts" + (f" including {', '.join(list(overlap)[:3])}." if overlap else ".")
+    ]
+
+    if answer_len > 120:
+        feedback_parts.append(
+            f"Your approach demonstrates solid practical reasoning for {topic}. "
+            "To make it even stronger, consider how this behaves under high concurrent load, "
+            "what failure modes could occur, and how you would establish monitoring and automated alerting."
+        )
+    else:
+        feedback_parts.append(
+            "You have the right foundational intuition. "
+            "In your next answers, try detailing specific mechanisms, edge-case handling, and performance implications under scale."
+        )
+
+    return " ".join(feedback_parts)
 
 
 async def stream_interviewer_reply(
@@ -154,7 +303,16 @@ async def stream_interviewer_reply(
     user_answer: str,
     skills: list[str],
 ) -> AsyncIterator[str]:
-    """Stream interviewer feedback and follow-up token by token over WebSocket."""
+    """Stream interviewer feedback and follow-up token by token over WebSocket with graceful fallback."""
+    if settings.parse_mode == "dummy":
+        fallback_text = _generate_fallback_feedback(question, ideal_concept, user_answer, skills)
+        tokens = re.split(r"(\s+)", fallback_text)
+        for token in tokens:
+            if token:
+                yield token
+                await asyncio.sleep(0.02)
+        return
+
     llm = chat_llm(temperature=0.4, streaming=True)
     system = (
         "You are a supportive but rigorous Principal Engineer conducting a live mock interview. "
@@ -187,6 +345,14 @@ async def stream_interviewer_reply(
     except asyncio.CancelledError:
         logger.info("Streaming interviewer reply was cancelled by client disconnection.")
         raise
+    except Exception as exc:
+        logger.warning("Live Ollama stream unavailable (%s). Streaming fallback feedback.", exc)
+        fallback_text = _generate_fallback_feedback(question, ideal_concept, user_answer, skills)
+        tokens = re.split(r"(\s+)", fallback_text)
+        for token in tokens:
+            if token:
+                yield token
+                await asyncio.sleep(0.02)
 
 
 async def score_answer(question: str, ideal_concept: str, user_answer: str) -> float:
@@ -206,7 +372,22 @@ async def score_answer(question: str, ideal_concept: str, user_answer: str) -> f
         if matches:
             score = float(matches[0])
             return max(0.0, min(10.0, score))
-        return 7.0
     except Exception as exc:
-        logger.warning("Failed to calculate score via LLM: %s. Defaulting to 7.0", exc)
-        return 7.0
+        logger.debug("Failed to calculate score via LLM: %s. Using heuristic evaluation.", exc)
+
+    # Heuristic scoring fallback based on length and concept coverage
+    clean_answer = user_answer.strip()
+    if len(clean_answer) < 20:
+        return 4.0
+    if len(clean_answer) < 60:
+        return 6.0
+
+    words = set(re.findall(r"\b[a-zA-Z]{3,}\b", clean_answer.lower()))
+    concept_words = set(re.findall(r"\b[a-zA-Z]{3,}\b", ideal_concept.lower()))
+    overlap_count = len(words.intersection(concept_words))
+
+    score = 6.5 + min(2.5, overlap_count * 0.5)
+    if len(clean_answer) > 180:
+        score = min(9.5, score + 0.5)
+
+    return round(score, 1)

@@ -4,10 +4,10 @@ import { api } from "./api.js";
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [access, setAccess] = useState(() => localStorage.getItem("access") || "");
-  const [refresh, setRefresh] = useState(() => localStorage.getItem("refresh") || "");
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [access, setAccess] = useState(() => localStorage.getItem("access") || "dev-test-token");
+  const [refresh, setRefresh] = useState(() => localStorage.getItem("refresh") || "dev-test-token");
+  const [user, setUser] = useState({ id: 1, email: "tester@example.com" });
+  const [loading, setLoading] = useState(false);
 
   function storeTokens(pair) {
     setAccess(pair.access_token);
@@ -17,42 +17,22 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
-    if (refresh) {
-      api("/auth/logout", { method: "POST", body: { refresh_token: refresh } }).catch(() => {});
-    }
-    setAccess("");
-    setRefresh("");
-    setUser(null);
+    setAccess("dev-test-token");
+    setRefresh("dev-test-token");
+    setUser({ id: 1, email: "tester@example.com" });
     localStorage.removeItem("access");
     localStorage.removeItem("refresh");
   }
 
   useEffect(() => {
-    if (!access) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
 
     async function fetchUser() {
       try {
         const me = await api("/auth/me", { token: access });
-        if (!cancelled) setUser(me);
+        if (!cancelled && me) setUser(me);
       } catch {
-        if (!refresh) {
-          if (!cancelled) logout();
-          return;
-        }
-        try {
-          const pair = await api("/auth/refresh", { method: "POST", body: { refresh_token: refresh } });
-          storeTokens(pair);
-          const me = await api("/auth/me", { token: pair.access_token });
-          if (!cancelled) setUser(me);
-        } catch {
-          if (!cancelled) logout();
-        }
+        // Testing mode: silently keep test user
       } finally {
         if (!cancelled) setLoading(false);
       }

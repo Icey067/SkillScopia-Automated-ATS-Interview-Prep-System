@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
     secret_key: str = "change-me-to-a-long-random-string"
     jwt_algorithm: str = "HS256"
@@ -40,7 +40,12 @@ class Settings(BaseSettings):
         if url.startswith("postgres://"):
             return url.replace("postgres://", "postgresql+asyncpg://", 1)
         if url.startswith("sqlite://") and not url.startswith("sqlite+aiosqlite://"):
-            return url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+            url = url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+        if "sqlite" in url and ("./interview.db" in url or url.endswith("/interview.db")):
+            from pathlib import Path
+            backend_dir = Path(__file__).resolve().parent.parent
+            db_path = backend_dir / "interview.db"
+            return f"sqlite+aiosqlite:///{db_path.as_posix()}"
         return url
 
     @property

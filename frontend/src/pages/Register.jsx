@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
@@ -9,6 +9,7 @@ import { Button, Input, Card } from "../components";
 export default function Register() {
   const { access, storeTokens } = useAuth();
   const { addToast } = useToast();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -23,6 +24,7 @@ export default function Register() {
       const pair = await api("/auth/login", { method: "POST", body: { email, password } });
       storeTokens(pair);
       addToast({ type: "success", message: "Account created successfully!" });
+      navigate("/", { replace: true });
     } catch (err) {
       addToast({ type: "error", message: err.message });
     } finally {
@@ -31,13 +33,10 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center px-4 py-12 bg-slate-950">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-md"
-      >
+    <div className="min-h-screen grid place-items-center px-4 py-12 bg-slate-950 relative overflow-hidden">
+      {/* Subtle ambient glow behind card */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="w-full max-w-md relative z-10">
         <Card variant="elevated" padding="lg">
           <div className="text-center mb-8">
             <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center mb-4">
@@ -97,7 +96,7 @@ export default function Register() {
             Already have an account? <Link to="/login" className="link font-medium">Sign in</Link>
           </p>
         </Card>
-      </motion.div>
+      </div>
     </div>
   );
 }

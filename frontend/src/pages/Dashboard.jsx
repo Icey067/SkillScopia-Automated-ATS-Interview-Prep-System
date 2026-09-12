@@ -271,108 +271,137 @@ export default function Dashboard() {
 
           <FadeInSection delay={0.2} className="md:max-h-[calc(100vh-8rem)] overflow-y-auto scrollbar-thin pr-2">
             {detail ? (
-              <>
-                <AnimatedCard delay={0.1} className="mb-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-lg font-medium">Skills & interview</h2>
-                      <p className="mt-1 text-sm text-slate-400">Status: <span className={STATUS_STYLES[detail.parsed_status] || "badge"}>{detail.parsed_status}</span></p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-400">{detail.skills?.length || 0} skills</span>
+              <AnimatedCard delay={0.05} className="mb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-medium">Skills & Interview Setup</h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Status: <span className={STATUS_STYLES[detail.parsed_status] || "badge"}>{detail.parsed_status}</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono bg-slate-800/80 px-2.5 py-1 rounded-full text-slate-300 border border-slate-700">
+                      {detail.skills?.length || 0} skills
+                    </span>
+                  </div>
+                </div>
+
+                {groupedSkills.resume.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-xs uppercase tracking-wider text-slate-400 mb-3 font-semibold">From Resume</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {groupedSkills.resume.map((s) => (
+                        <span
+                          key={s.id}
+                          className="rounded-xl bg-slate-800/80 px-3 py-1 text-sm font-medium text-slate-200 border border-slate-700 shadow-sm"
+                        >
+                          {s.skill_name}
+                        </span>
+                      ))}
                     </div>
                   </div>
+                )}
 
-                  {groupedSkills.resume.length > 0 && (
-                    <div className="mb-6 animate-slide-up">
-                      <h3 className="text-sm uppercase tracking-wide text-slate-400 mb-3">From resume</h3>
-                      <StaggeredList className="flex flex-wrap gap-2" stagger={0.03}>
-                        {groupedSkills.resume.map((s) => (
-                          <motion.span
-                            key={s.id}
-                            variants={{ hidden: { opacity: 0, scale: 0.9 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.2 } } }}
-                            initial="hidden"
-                            animate="visible"
-                            className="rounded-full bg-slate-800 px-3 py-1 text-sm font-medium text-slate-100 border border-slate-700"
-                          >
-                            {s.skill_name}
-                          </motion.span>
-                        ))}
-                      </StaggeredList>
+                {groupedSkills.semantic.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-xs uppercase tracking-wider text-cyan-400 mb-3 font-semibold">Semantic Expansions</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {groupedSkills.semantic.map((s) => (
+                        <span
+                          key={s.id}
+                          className="rounded-xl bg-cyan-950/40 px-3 py-1 text-sm font-medium text-cyan-200 border border-cyan-800/60 shadow-sm flex items-center gap-1.5"
+                        >
+                          <span>{s.skill_name}</span>
+                          <span className="text-cyan-400 text-xs font-mono font-bold">{s.confidence_score.toFixed(2)}</span>
+                        </span>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {groupedSkills.semantic.length > 0 && (
-                    <div className="mb-6 animate-slide-up">
-                      <h3 className="text-sm uppercase tracking-wide text-slate-400 mb-3">Semantic neighbors</h3>
-                      <StaggeredList className="flex flex-wrap gap-2" stagger={0.03}>
-                        {groupedSkills.semantic.map((s) => (
-                          <motion.span
-                            key={s.id}
-                            variants={{ hidden: { opacity: 0, scale: 0.9, rotate: -5 }, visible: { opacity: 1, scale: 1, rotate: 0, transition: { duration: 0.3 } } }}
-                            initial="hidden"
-                            animate="visible"
-                            className="rounded-full bg-cyan-950/50 px-3 py-1 text-sm font-medium text-cyan-200 border border-cyan-800"
-                          >
-                            {s.skill_name}
-                            <span className="ml-1.5 text-cyan-500 font-mono">{s.confidence_score.toFixed(2)}</span>
-                          </motion.span>
-                        ))}
-                      </StaggeredList>
-                    </div>
-                  )}
-
-                  {groupedSkills.resume.length === 0 && groupedSkills.semantic.length === 0 && (
-                    <div className="text-center py-8 text-slate-500 animate-fade-in">
-                      <svg className="mx-auto w-12 h-12 mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <p>No skills extracted yet. Wait for parsing to complete.</p>
-                    </div>
-                  )}
-
-                  <Button
-                    disabled={busy || detail.parsed_status !== "done"}
-                    onClick={startInterview}
-                    fullWidth
-                    isLoading={busy}
-                    className="mt-4"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                {groupedSkills.resume.length === 0 && groupedSkills.semantic.length === 0 && (
+                  <div className="text-center py-8 text-slate-500">
+                    <svg className="mx-auto w-12 h-12 mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Start Interview
-                  </Button>
-                </AnimatedCard>
-              </>
+                    <p>No skills extracted yet. Wait for parsing to complete.</p>
+                  </div>
+                )}
+
+                <Button
+                  disabled={busy || detail.parsed_status !== "done"}
+                  onClick={startInterview}
+                  fullWidth
+                  isLoading={busy}
+                  size="lg"
+                  className="mt-4 font-semibold shadow-lg shadow-cyan-500/10"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  Launch AI Interview (5 Questions)
+                </Button>
+              </AnimatedCard>
             ) : (
-              <AnimatedCard delay={0.1} className="text-center py-12">
-                <svg className="mx-auto w-16 h-16 text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="text-lg font-medium mb-2">Select a resume</h3>
-                <p className="text-slate-400">Choose a resume from the left to inspect extracted + semantic skills and start an interview.</p>
+              <AnimatedCard delay={0.1} className="text-center py-16 border-dashed border-slate-800">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-800/40 border border-slate-700/50 flex items-center justify-center mb-4">
+                  <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-1.5 text-slate-200">Select a Resume</h3>
+                <p className="text-slate-400 text-sm max-w-xs mx-auto">
+                  Choose a resume from the list on the left to review extracted skills and launch your mock interview session.
+                </p>
               </AnimatedCard>
             )}
           </FadeInSection>
         </div>
 
-        <section className="mt-8">
-          <h2 className="text-lg font-medium mb-3">Interview history</h2>
+        <section className="mt-10">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
+              <span>Interview History</span>
+              <span className="text-xs bg-slate-800 px-2 py-0.5 rounded-full text-slate-400 font-normal">
+                {sessions.length}
+              </span>
+            </h2>
+          </div>
           {sessions.length === 0 ? (
-            <p className="text-sm text-slate-400">Completed and active interviews will appear here.</p>
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-900/30 p-8 text-center text-slate-400 text-sm">
+              <p>Completed and in-progress interviews will appear here automatically.</p>
+            </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {sessions.map((session) => {
-                const answered = session.questions.filter((q) => q.user_answer).length;
-                const scores = session.questions.map((q) => q.score).filter((score) => score != null);
+                const questions = session.questions || [];
+                const answered = questions.filter((q) => q.user_answer).length;
+                const scores = questions.map((q) => q.score).filter((score) => score != null);
                 const average = scores.length ? (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1) : null;
                 return (
-                  <AnimatedCard key={session.id} className="cursor-pointer" onClick={() => navigate(`/interview/${session.id}`)}>
-                    <div className="flex justify-between gap-3"><span className="font-medium">Session #{session.id}</span><span className={session.ended_at ? "badge-success" : "badge-processing"}>{session.ended_at ? "complete" : "active"}</span></div>
-                    <p className="mt-2 text-sm text-slate-400">{answered}/{session.questions.length} answered{average ? ` · avg. ${average}/10` : ""}</p>
-                    <p className="mt-1 text-xs text-slate-500">{new Date(session.started_at).toLocaleString()}</p>
-                  </AnimatedCard>
+                  <motion.div
+                    key={session.id}
+                    whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                    whileTap={{ scale: 0.98 }}
+                    className="cursor-pointer rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 backdrop-blur-md shadow-md hover:border-slate-700 hover:shadow-cyan-950/20 transition-all"
+                    onClick={() => navigate(`/interview/${session.id}`)}
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <span className="font-semibold text-slate-200">Session #{session.id}</span>
+                      <span className={session.ended_at ? "badge-success" : "badge-processing"}>
+                        {session.ended_at ? "Complete" : "In Progress"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-400">
+                      {answered}/{questions.length} answered
+                      {average ? (
+                        <span className="ml-1.5 text-cyan-400 font-mono font-medium">&bull; Avg {average}/10</span>
+                      ) : ""}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-500 font-mono">
+                      {new Date(session.started_at).toLocaleString()}
+                    </p>
+                  </motion.div>
                 );
               })}
             </div>

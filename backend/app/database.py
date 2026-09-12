@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import QueuePool, StaticPool
+from sqlalchemy.pool import AsyncAdaptedQueuePool, StaticPool
 
 from app.config import get_settings
 from app.logging_config import setup_logging
@@ -29,7 +29,7 @@ if "sqlite" in db_url:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
     engine_kwargs["poolclass"] = StaticPool
 else:
-    engine_kwargs["poolclass"] = QueuePool
+    engine_kwargs["poolclass"] = AsyncAdaptedQueuePool
     engine_kwargs["pool_size"] = settings.db_pool_size
     engine_kwargs["max_overflow"] = settings.db_max_overflow
     engine_kwargs["pool_timeout"] = settings.db_pool_timeout
